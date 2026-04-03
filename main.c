@@ -40,40 +40,72 @@ int main(){
         return 1;
     }
 
+
+
     printf("listen worked \n");
 
-    while(1){
-        printf("waiting for new connection");
+    while (1) {
         struct sockaddr_in client_addr;
         socklen_t addr_size = sizeof(client_addr);
+        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_size);
         
-
-        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr,&addr_size);
-
-        if(client_fd == -1){
-            perror("accept failed");
+        if (client_fd == -1) {
             continue;
-
         }
-        printf("connected to a client");
+
+        char buffer[2048] = {0};
+        int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+
+        if (bytes_received <= 0) {
+            close(client_fd);
+            continue;
+        }
+
+        buffer[bytes_received] = '\0';
+
+        char method[10], path[255], protocol[20];
+        sscanf(buffer, "%s %s %s", method, path, protocol);
+
+        char *status_line;
+        char *response_body;
+
+        if (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0) {
+            status_line = "HTTP/1.1 200 OK";
+            response_body = "<html><body><h1>Welcome Home!</h1><p>Arpit's Server is running.</p></body></html>";
+        } else if (strcmp(path, "/about") == 0) {
+            status_line = "HTTP/1.1 200 OK";
+            response_body = "<html><body><h1>About Page</h1><p>First-year engineering project.</p></body></html>";
+        } else {
+            status_line = "HTTP/1.1 404 Not Found";
+            response_body = "<html><body><h1>404</h1><p>Page not found!</p></body></html>";
+        }
+
+        char response_full[4096];
+        int response_len = sprintf(response_full,
+            "%s\r\n"
+            "Content-Type: text/html\r\n"
+            "Content-Length: %ld\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "%s",
+            status_line, strlen(response_body), response_body);
+
+        int total_sent = 0;
+        int bytes_left = response_len;
+        while (total_sent < response_len) {
+            int n = send(client_fd, response_full + total_sent, bytes_left, 0);
+            if (n == -1) {
+                break;
+            }
+            total_sent += n;
+            bytes_left -= n;
+        }
 
         close(client_fd);
-    }
-    char buffer[1024];
-    int bytes_recieved = recv(server_fd,buffer,sizeof(buffer)-1,0);
-    if (bytes_recieved <0){
-        perror("recieve failed");
-    }
-    else if(bytes_recieved ==0){
-        printf(" \n client connected successfully\n");
-    }
-    else if (bytes_recieved >= 0){
-        printf("\nrequest recieved succesfully\n");
-        buffer[bytes_recieved] = '\0';
-        printf(" \nthe request was %c \n", buffer);
-    }
+}
+  
 
-=
+
     return 0;
 
 }
